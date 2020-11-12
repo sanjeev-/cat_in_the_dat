@@ -1,12 +1,5 @@
-"""
-One of the simplest models we can build is a logistic regression where we one-hot encode all
-of the features
-"""
 import pandas as pd
-
-from sklearn import linear_model
-from sklearn import metrics
-from sklearn import preprocessing
+from sklearn import ensemble, metrics, preprocessing
 
 import config
 
@@ -27,36 +20,33 @@ def run(fold):
     for col in features:
         df.loc[:, col] = df[col].astype(str).fillna("NONE")
 
+    # Now we label encode the features
+    for col in features:
+        lbl = preprocessing.LabelEncoder()
+        lbl.fit(df[col])
+        df.loc[:, col] = lbl.transform(df[col])
+
     # Get training data using fold
     df_train = df[df.kfold != fold].reset_index(drop=True)
 
     # Get validation data using fold
     df_valid = df[df.kfold == fold].reset_index(drop=True)
 
-    # Initialize OneHotEncoder from sklearn
-    ohe = preprocessing.OneHotEncoder()
+    # Get features records for train and validation data
+    x_train = df_train[features]
+    x_valid = df_valid[features]
 
-    # Fit ohe on training + validation features
-    full_data = pd.concat([df_train[features], df_valid[features]], axis=0)
-    ohe.fit(full_data[features])
+    # Initialize random forest model
+    model = ensemble.RandomForestClassifier(n_jobs=-1)
 
-    # Transform training data
-    x_train = ohe.transform(df_train[features])
-
-    # Transform validation data
-    x_validation = ohe.transform(df_valid[features])
-
-    # Initialize logistic regression model
-    model = linear_model.LogisticRegression()
-
-    # Fit model on OHE training data
+    # Fit model on training data
     model.fit(x_train, df_train.target.values)
 
     # Predict on validation data, we need to use the
     # probability values because we are using AUC
     # we will use the probabilities of 1s
 
-    validation_preds = model.predict_proba(x_validation)[:, 1]
+    validation_preds = model.predict_proba(x_valid)[:, 1]
 
     # Get the ROC AUC score
     auc = metrics.roc_auc_score(df_valid.target.values, validation_preds)
@@ -68,4 +58,3 @@ def run(fold):
 if __name__ == "__main__":
     for fold in range(5):
         run(fold)
-

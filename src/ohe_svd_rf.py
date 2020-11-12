@@ -1,12 +1,6 @@
-"""
-One of the simplest models we can build is a logistic regression where we one-hot encode all
-of the features
-"""
 import pandas as pd
-
-from sklearn import linear_model
-from sklearn import metrics
-from sklearn import preprocessing
+from scipy import sparse
+from sklearn import decomposition, ensemble, metrics, preprocessing
 
 import config
 
@@ -46,8 +40,20 @@ def run(fold):
     # Transform validation data
     x_validation = ohe.transform(df_valid[features])
 
+    # Initialize the truncated SVD - we are reducing
+    # to 120 features
+    svd = decomposition.TruncatedSVD(n_components=120)
+
+    # Fit SVD on full sparse training dataset
+    full_sparse = sparse.vstack((x_train, x_validation))
+    svd.fit(full_sparse)
+
+    # Transform the sparse training data
+    x_train = svd.transform(x_train)
+    x_validation = svd.transform(x_validation)
+
     # Initialize logistic regression model
-    model = linear_model.LogisticRegression()
+    model = ensemble.RandomForestClassifier(n_jobs=-1)
 
     # Fit model on OHE training data
     model.fit(x_train, df_train.target.values)
@@ -68,4 +74,3 @@ def run(fold):
 if __name__ == "__main__":
     for fold in range(5):
         run(fold)
-
